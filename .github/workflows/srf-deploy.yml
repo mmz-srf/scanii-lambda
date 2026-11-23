@@ -3,47 +3,49 @@ on:
   workflow_dispatch:
     inputs:
       stage:
-        description: 'Stage (test|stage|production)'
+        description: 'Stage'
         required: true
+        type: choice
+        options:
+          - dev
+          - int
+          - prd
 jobs:
   build_and_deploy:
-    name: Build and Deploy ${{ github.event.inputs.stage }}
+    name: Build and Deploy ${{ inputs.stage }}
     runs-on: ubuntu-latest
+    environment: ${{ inputs.stage }}
+    env:
+      STAGE: ${{ inputs.stage }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: '12'
+          node-version: '24'
       - name: build
-        run: | 
+        run: |
           npm install .
           mkdir -v build
           zip -9vr build/scanii-lambda.zip lib/ node_modules/ package* README.md LICENSE
-      - name: install AWS cli DEV
-        if: ${{ github.event.inputs.stage == 'test' }}
+      - name: configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          aws-region: ${{ secrets.AWS_REGION }}
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_DEV }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_DEV }}
-      - name: install AWS cli INT
-        if: ${{ github.event.inputs.stage == 'stage' }}
-        uses: aws-actions/configure-aws-credentials@v6
-        with:
-          aws-region: ${{ secrets.AWS_REGION }}
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_INT }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_INT }}
-      - name: install AWS cli PRD
-        if: ${{ github.event.inputs.stage == 'production' }}
-        uses: aws-actions/configure-aws-credentials@v6
-        with:
-          aws-region: ${{ secrets.AWS_REGION }}
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_PRD }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_PRD }}
-      - name: deploy 
+          aws-region: ${{ vars.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      - name: deploy
         run: |
-          aws s3 cp build/scanii-lambda.zip s3://srf-deployment-s3-${{ github.event.inputs.stage }}/formio-scanii/latest.zip
+          case "$STAGE" in
+            dev) RESOURCE_STAGE=test ;;
+            int) RESOURCE_STAGE=stage ;;
+            prd) RESOURCE_STAGE=production ;;
+            *) echo "Unbekannte Stage: $STAGE" >&2; exit 1 ;;
+          esac
 
-          aws lambda update-function-code --function-name formio-scanii-submit-${{ github.event.inputs.stage }} --s3-bucket srf-deployment-s3-${{ github.event.inputs.stage }} --s3-key formio-scanii/latest.zip
-          aws lambda update-function-code --function-name formio-scanii-callback-${{ github.event.inputs.stage }} --s3-bucket srf-deployment-s3-${{ github.event.inputs.stage }} --s3-key formio-scanii/latest.zip
+          BUCKET="srf-deployment-s3-${RESOURCE_STAGE}"
+          KEY="formio-scanii/latest.zip"
 
+          aws s3 cp build/scanii-lambda.zip "s3://${BUCKET}/${KEY}"
+
+          aws lambda update-function-code --function-name "formio-scanii-submit-${RESOURCE_STAGE}" --s3-bucket "${BUCKET}" --s3-key "${KEY}"
+          aws lambda update-function-code --function-name "formio-scanii-callback-${RESOURCE_STAGE}" --s3-bucket "${BUCKET}" --s3-key "${KEY}"
