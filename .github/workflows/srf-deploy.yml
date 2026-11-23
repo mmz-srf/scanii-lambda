@@ -10,8 +10,8 @@ jobs:
     name: Build and Deploy ${{ github.event.inputs.stage }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-node@v2
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '12'
       - name: build
@@ -21,21 +21,21 @@ jobs:
           zip -9vr build/scanii-lambda.zip lib/ node_modules/ package* README.md LICENSE
       - name: install AWS cli DEV
         if: ${{ github.event.inputs.stage == 'test' }}
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-region: ${{ secrets.AWS_REGION }}
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_DEV }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_DEV }}
       - name: install AWS cli INT
         if: ${{ github.event.inputs.stage == 'stage' }}
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-region: ${{ secrets.AWS_REGION }}
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_INT }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_INT }}
       - name: install AWS cli PRD
         if: ${{ github.event.inputs.stage == 'production' }}
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-region: ${{ secrets.AWS_REGION }}
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_PRD }}
